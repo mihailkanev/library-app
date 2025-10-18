@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📚 Библиотека с книги</title>
+</head>
+<body>
+<header>
+    <h1>📚 Моята библиотека</h1>
+    <p>Управлявай своите книги лесно и бързо</p>
+</header>
+
+<main>
+    <section>
+        <h2>➕ Добави нова книга</h2>
+        <form onsubmit="event.preventDefault(); addBook();">
+            <div>
+                <label for="title">Заглавие:</label>
+                <input type="text" id="title" placeholder="Въведи заглавие на книгата" required>
+            </div>
+
+            <div>
+                <label for="author">Автор:</label>
+                <input type="text" id="author" placeholder="Въведи автор" required>
+            </div>
+
+            <div>
+                <label for="year">Година на публикуване:</label>
+                <input type="number" id="year" placeholder="Напр. 2024">
+            </div>
+
+            <div>
+                <label for="isbn">ISBN:</label>
+                <input type="text" id="isbn" placeholder="ISBN номер">
+            </div>
+
+            <button type="submit">✅ Добави книга</button>
+        </form>
+    </section>
+
+    <section>
+        <h2>📖 Всички книги</h2>
+        <button onclick="loadBooks()">🔄 Презареди книгите</button>
+        <div id="booksList">
+            <p>Зареждам книгите...</p>
+        </div>
+    </section>
+</main>
+
+<footer>
+    <p>© 2024 Моята библиотека. Всички права запазени.</p>
+</footer>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        loadBooks();
+    });
+
+    async function loadBooks() {
+        try {
+            const response = await fetch('/api/books');
+            const books = await response.json();
+            displayBooks(books);
+        } catch (error) {
+            console.error('Грешка при зареждане на книгите:', error);
+            document.getElementById('booksList').innerHTML = '<p>❌ Грешка при зареждане на книгите</p>';
+        }
+    }
+
+    // Функция за показване на книгите
+    function displayBooks(books) {
+        const booksList = document.getElementById('booksList');
+
+        if (books.length === 0) {
+            booksList.innerHTML = '<p>📭 Все още няма книги в библиотеката</p>';
+            return;
+        }
+
+        booksList.innerHTML = books.map(book => `
+            <div style="border: 1px solid #ccc; padding: 15px; margin: 10px 0; background: #f9f9f9;">
+                <div style="font-size: 18px; font-weight: bold;">${book.title}</div>
+                <div style="color: #666;">✍️ ${book.author}</div>
+                <div>📅 Година: ${book.publicationYear}</div>
+                <div>🔖 ISBN: ${book.isbn}</div>
+                <button onclick="deleteBook(${book.id})" style="background: red; color: white; padding: 5px 10px; border: none; margin-top: 10px;">❌ Изтрий</button>
+            </div>
+        `).join('');
+    }
+
+    // Функция за добавяне на нова книга
+    async function addBook() {
+        const title = document.getElementById('title').value;
+        const author = document.getElementById('author').value;
+        const year = document.getElementById('year').value;
+        const isbn = document.getElementById('isbn').value;
+
+        if (!title || !author) {
+            alert('❌ Моля, попълни поне заглавие и автор!');
+            return;
+        }
+
+        const newBook = {
+            title: title,
+            author: author,
+            publicationYear: parseInt(year) || new Date().getFullYear(),
+            isbn: isbn || 'Няма ISBN'
+        };
+
+        try {
+            await fetch('/api/books', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(newBook)
+            });
+
+            // Изчисти формата
+            document.getElementById('title').value = '';
+            document.getElementById('author').value = '';
+            document.getElementById('year').value = '';
+            document.getElementById('isbn').value = '';
+
+            // Презареди книгите
+            loadBooks();
+
+        } catch (error) {
+            console.error('Грешка при добавяне на книга:', error);
+            alert('❌ Грешка при добавяне на книгата');
+        }
+    }
+
+    // Функция за изтриване на книга
+    async function deleteBook(bookId) {
+        if (!confirm('⚠️ Сигурен ли си, че искаш да изтриеш тази книга?')) {
+            return;
+        }
+
+        try {
+            await fetch(`/api/books/${bookId}`, {
+                method: 'DELETE'
+            });
+
+            loadBooks(); // Презареди списъка
+        } catch (error) {
+            console.error('Грешка при изтриване на книга:', error);
+            alert('❌ Грешка при изтриване на книгата');
+        }
+    }
+</script>
+</body>
+</html>
