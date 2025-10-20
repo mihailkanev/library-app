@@ -1,13 +1,14 @@
 package com.book.library.controller;
 
+import com.book.library.dto.BookMapper;
+import com.book.library.dto.BookRequestDTO;
+import com.book.library.dto.BookResponseDTO;
 import com.book.library.model.Book;
-import com.book.library.repository.BookRepository;
 import com.book.library.service.BookService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.io.IOException;
 import java.util.*;
 
 @RestController
@@ -15,46 +16,46 @@ import java.util.*;
 public class BookController {
 
     private final BookService bookService;
+    private final BookMapper bookMapper;
 
-    public BookController(BookService bookService) {
+    public BookController(BookService bookService, BookMapper bookMapper) {
         this.bookService = bookService;
+        this.bookMapper = bookMapper;
     }
 
     @GetMapping
-    public List<Book> getAllBooks() {
-        return bookService.getAllBooks();
+    public List<BookResponseDTO> getAllBooks() {
+        List<Book> books = bookService.getAllBooks();
+        return bookMapper.toDtoList(books);
     }
 
     @PostMapping
-    public Book addBook(@Valid @RequestBody Book book) {
-        return bookService.saveBook(book);
+    public BookResponseDTO addBook(@Valid @RequestBody BookRequestDTO bookRequestDTO) {
+        Book entity = bookMapper.toEntity(bookRequestDTO);
+        Book savedEntity = bookService.saveBook(entity);
+        return bookMapper.toDto(savedEntity);
     }
 
-
     @GetMapping("/{id}")
-    public ResponseEntity<Book> getBookById(@PathVariable Long id) {
-        Optional<Book> book = bookService.getBookById(id);
-        return book.map(ResponseEntity::ok).orElse(ResponseEntity.notFound().build());
+    public ResponseEntity<BookResponseDTO> getBookById(@PathVariable Long id) {
+        Optional<Book> bookOptional = bookService.getBookById(id);
+        if (bookOptional.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+        Book getBook = bookOptional.get();
+        BookResponseDTO bookResponseDTO = bookMapper.toDto(getBook);
+
+        return ResponseEntity.ok(bookResponseDTO);
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Book> updateBook(@PathVariable Long id, @Valid @RequestBody Book updatedBook) {
-        Optional<Book> existingBookOpt = bookService.getBookById(id);
-
-        if (existingBookOpt.isPresent()) {
-            Book existingBook = existingBookOpt.get();
-
-            existingBook.setTitle(updatedBook.getTitle());
-            existingBook.setAuthor(updatedBook.getAuthor());
-            existingBook.setPublicationYear(updatedBook.getPublicationYear());
-            existingBook.setIsbn(updatedBook.getIsbn());
-            existingBook.setAvailable(updatedBook.isAvailable());
-
-            Book savedBook = bookService.saveBook(existingBook);
-            return ResponseEntity.ok(savedBook);
-        } else {
-            return ResponseEntity.notFound().build();
-        }
+    public ResponseEntity<BookResponseDTO> updateBook(@PathVariable Long id, @Valid @RequestBody BookRequestDTO updatedBook) {
+        Optional<Book> oldBook = bookService.getBookById(id);
+        Book bookId = oldBook.get();
+        bookMapper.updateEntityFromDto(updatedBook, bookId);
+        Book savedBook = bookService.saveBook(bookId);
+        BookResponseDTO bookResponseDTO = bookMapper.toDto(savedBook);
+        return ResponseEntity.ok(bookResponseDTO);
     }
 
     @DeleteMapping("/{id}")
@@ -68,41 +69,10 @@ public class BookController {
     }
 
     @PatchMapping("/{id}")
-    public ResponseEntity<Book> updateBookPartially(@PathVariable Long id,
-                                                    @RequestBody Map<String, Object> updates) {
-        Optional<Book> existingBookOpt = bookService.getBookById(id);
-        //todo validation
-        if (existingBookOpt.isEmpty()) {
-            return ResponseEntity.notFound().build();
-        }
-
-        Book existingBook = existingBookOpt.get();
-
-        try {
-            updates.forEach((key, value) -> {
-                switch (key) {
-                    case "title" -> existingBook.setTitle(value.toString());
-                    case "author" -> existingBook.setAuthor(value.toString());
-                    case "publicationYear" -> {
-                        if (value instanceof Number) {
-                            existingBook.setPublicationYear(((Number) value).intValue());
-                        }
-                    }
-                    case "isbn" -> existingBook.setIsbn(value.toString());
-                    case "available" -> {
-                        if (value instanceof Boolean) {
-                            existingBook.setAvailable((Boolean) value);
-                        }
-                    }
-                    default -> throw new IllegalArgumentException("Invalid field: " + key);
-                }
-            });
-
-            Book savedBook = bookService.saveBook(existingBook);
-            return ResponseEntity.ok(savedBook);
-
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().build();
-        }
+    public ResponseEntity<BookResponseDTO> updateBookPartially(@PathVariable Long id,
+                                                    @RequestBody BookRequestDTO updates) {
+        Book updatedBook = bookService.patchBook(id,updates);
+        BookResponseDTO bookResponseDTO = bookMapper.toDto(updatedBook);
+        return ResponseEntity.ok(bookResponseDTO);
     }
 }
